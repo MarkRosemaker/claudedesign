@@ -6,6 +6,7 @@ package claudedesign
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,6 +36,16 @@ func Extract(exportID string) error {
 		return fmt.Errorf("got status %s", rsp.Status)
 	}
 
+	var extract func(io.Reader) error
+	switch ct := rsp.Header.Get("Content-Type"); ct {
+	case "application/gzip":
+		extract = extractGzip
+	case "application/tar":
+		extract = extractTar
+	default:
+		return fmt.Errorf("unknown Content-Type: %q", ct)
+	}
+
 	// Clean out the directory before unzipping
 	if err := os.RemoveAll(frontendDir); err != nil {
 		return fmt.Errorf("cleaning directory: %w", err)
@@ -44,7 +55,21 @@ func Extract(exportID string) error {
 		return fmt.Errorf("creating new frontend directory")
 	}
 
-	tr := tar.NewReader(rsp.Body)
+	return extract(rsp.Body)
+}
+
+func extractGzip(r io.Reader) error {
+	gzReader, err := gzip.NewReader(r)
+	if err != nil {
+		return err
+	}
+	defer gzReader.Close()
+
+	return extractTar(gzReader)
+}
+
+func extractTar(r io.Reader) error {
+	tr := tar.NewReader(r)
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
@@ -54,13 +79,13 @@ func Extract(exportID string) error {
 			return err
 		}
 
-		if err := extractFile(tr, h); err != nil {
+		if err := extractTarFile(tr, h); err != nil {
 			return fmt.Errorf("extracting %q: %w", h.Name, err)
 		}
 	}
 }
 
-func extractFile(tr *tar.Reader, h *tar.Header) error {
+func extractTarFile(tr *tar.Reader, h *tar.Header) error {
 	dest := filepath.Join(frontendDir, h.Name)
 
 	switch h.Typeflag {
@@ -69,6 +94,10 @@ func extractFile(tr *tar.Reader, h *tar.Header) error {
 			return err
 		}
 	case tar.TypeReg:
+		if err := os.MkdirAll(filepath.Dir(dest), 0777); err != nil {
+			return err
+		}
+
 		f, err := os.Create(dest)
 		if err != nil {
 			return err
