@@ -1,67 +1,56 @@
 package claudedesign
 
 import (
+	"archive/zip"
 	"bytes"
 	_ "embed"
-	"fmt"
-	"io"
-	"net/http"
+	"errors"
+	"io/fs"
+	"path/filepath"
 	"testing"
+
+	"github.com/spf13/afero"
 )
 
-//go:embed testdata/Hg869Yo0PbGgmpUWg3hNdw.tar.gz
+//go:embed "testdata/LSO Helper.zip"
 var data []byte
 
-type testTransport struct {
-}
-
-// RoundTrip implements [http.RoundTripper].
-func (t *testTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if r.URL.String() != "https://api.anthropic.com/v1/design/h/Hg869Yo0PbGgmpUWg3hNdw" {
-		return nil, fmt.Errorf("unknown request url %q", r.URL)
-	}
-
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(data)),
-		Header: http.Header{
-			"Content-Type": []string{"application/gzip"},
-		},
-	}, nil
-}
-
 func TestExtract(t *testing.T) {
-	http.DefaultTransport = &testTransport{}
+	mem := &afero.MemMapFs{}
 
-	if err := Extract("Hg869Yo0PbGgmpUWg3hNdw"); err != nil {
+	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
 		t.Fatal(err)
 	}
-	// Hg869Yo0PbGgmpUWg3hNdw
-	// Simulate a Claude Design export: MyApp.zip containing MyApp.html + app.jsx
-	// makeZip(t, filepath.Join(dir, "MyApp.zip"), map[string]string{
-	// 	"MyApp.html": "<html>hello</html>",
-	// 	"app.jsx":    "const App = () => {};",
-	// })
 
-	// // Place a stale file and a favicon that should be preserved.
-	// writeFile(t, filepath.Join(dir, "old-file.js"), []byte("stale"))
-	// writeFile(t, filepath.Join(dir, "favicon.ico"), []byte("icon"))
+	if err := extract(r, mem); err != nil {
+		t.Fatal(err)
+	}
 
-	// if err := Extract(dir); err != nil {
-	// 	t.Fatal(err)
-	// }
+	assertFile(t, mem, "index.html", "<title>LSO Helper</title>")
+	assertFile(t, mem, "openapi.json", `"openapi": "3.0.0",`)
+}
 
-	// // index.html should exist (renamed from MyApp.html)
-	// assertFile(t, filepath.Join(dir, "index.html"), "<html>hello</html>")
+func assertFile(t *testing.T, mem *afero.MemMapFs, path, containing string) {
+	t.Helper()
 
-	// // app.jsx extracted as-is
-	// assertFile(t, filepath.Join(dir, "app.jsx"), "const App = () => {};")
+	got, err := afero.ReadFile(mem, path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			if entries, err2 := afero.ReadDir(mem, filepath.Dir(path)); err2 == nil {
+				names := make([]string, len(entries))
+				for i, e := range entries {
+					names[i] = e.Name()
+				}
 
-	// // favicon preserved
-	// assertFile(t, filepath.Join(dir, "favicon.ico"), "icon")
+				t.Fatalf("%v but %q exist", err, names)
+			}
+		}
 
-	// // stale file removed
-	// if _, err := os.Stat(filepath.Join(dir, "old-file.js")); err == nil {
-	// 	t.Error("old-file.js should have been deleted")
-	// }
+		t.Fatal(err)
+	}
+
+	if !bytes.Contains(got, []byte(containing)) {
+		t.Errorf("content=%s, want=%s", got, containing)
+	}
 }

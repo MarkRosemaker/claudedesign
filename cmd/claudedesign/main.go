@@ -2,12 +2,12 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 
 	"github.com/MarkRosemaker/claudedesign"
+	"github.com/spf13/afero"
 )
 
 func main() {
@@ -19,27 +19,21 @@ func main() {
 }
 
 func run() error {
-	exportID := ""
-	flag.StringVar(&exportID, "id", "", "id of the design: https://api.anthropic.com/v1/design/h/{id}")
+	path := ""
+	flag.StringVar(&path, "path", "", "path of the zipped design export")
 	flag.Parse()
 
 	if len(flag.Args()) != 1 {
 		return fmt.Errorf("expects exactly one argument, got %v", flag.Args())
 	}
 
-	switch arg := flag.Args()[0]; arg {
-	case "unzip", "extract", "import":
-		if exportID == "" {
-			return fmt.Errorf("-id is required")
-		}
+	if path == "" {
+		return fmt.Errorf("-path is required")
+	}
 
-		if err := claudedesign.Extract(exportID); errors.Is(err, claudedesign.ErrExportNotFound) {
-			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
-		} else if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unknown argument %q", arg)
+	if err := claudedesign.Extract(path,
+		afero.NewBasePathFs(afero.NewOsFs(), "frontend")); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
 	}
 
 	return nil
