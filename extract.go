@@ -14,8 +14,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-const frontendDir = "frontend"
-
 func Extract(zipFile string, fsys afero.Fs) error {
 	// Open the zip archive for reading
 	r, err := zip.OpenReader(zipFile)
@@ -25,15 +23,15 @@ func Extract(zipFile string, fsys afero.Fs) error {
 	defer r.Close()
 
 	// Clean out the directory before unzipping
-	if err := fsys.RemoveAll(frontendDir); err != nil {
+	if err := fsys.RemoveAll("."); err != nil {
 		return fmt.Errorf("cleaning directory: %w", err)
 	}
 
-	if err := fsys.MkdirAll(frontendDir, 0o755); err != nil {
+	if err := fsys.MkdirAll(".", 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
-	if err := extract(&r.Reader, afero.NewBasePathFs(fsys, frontendDir)); err != nil {
+	if err := extract(&r.Reader, fsys); err != nil {
 		return err
 	}
 
@@ -45,7 +43,6 @@ func Extract(zipFile string, fsys afero.Fs) error {
 }
 
 func extract(r *zip.Reader, fsys afero.Fs) error {
-
 	// Iterate over each file/dir in the archive
 	for _, f := range r.File {
 		if err := extractFile(fsys, f); err != nil {
