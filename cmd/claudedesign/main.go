@@ -2,8 +2,10 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 
 	"github.com/MarkRosemaker/claudedesign"
@@ -39,8 +41,10 @@ func run() error {
 		}
 
 		if err := claudedesign.Extract(path,
-			afero.NewBasePathFs(afero.NewOsFs(), "frontend")); err != nil {
+			afero.NewBasePathFs(afero.NewOsFs(), "frontend")); errors.Is(err, fs.ErrNotExist) {
 			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+		} else if err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unknown command %q", cmd)
