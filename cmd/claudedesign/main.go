@@ -23,17 +23,27 @@ func run() error {
 	flag.StringVar(&path, "path", "", "path of the zipped design export")
 	flag.Parse()
 
-	if len(flag.Args()) != 1 {
-		return fmt.Errorf("expects exactly one argument, got %v", flag.Args())
+	cmd := "unzip"
+	switch len(flag.Args()) {
+	case 0: //ok
+	case 1:
+		cmd = flag.Args()[0]
+	default:
+		return fmt.Errorf("expects at most one argument, got %v", flag.Args())
 	}
 
-	if path == "" {
-		return fmt.Errorf("-path is required")
-	}
+	switch cmd {
+	case "unzip", "extract":
+		if path == "" {
+			return fmt.Errorf("-path is required")
+		}
 
-	if err := claudedesign.Extract(path,
-		afero.NewBasePathFs(afero.NewOsFs(), "frontend")); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+		if err := claudedesign.Extract(path,
+			afero.NewBasePathFs(afero.NewOsFs(), "frontend")); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+		}
+	default:
+		return fmt.Errorf("unknown command %q", cmd)
 	}
 
 	return nil
