@@ -20,7 +20,7 @@ func Extract(zipFile string, fsys afero.Fs) error {
 	if err != nil {
 		return fmt.Errorf("failed to open zip file: %w", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	// Clean out the directory before unzipping
 	if err := fsys.RemoveAll("."); err != nil {
@@ -64,7 +64,7 @@ func extractFile(fsys afero.Fs, f *zip.File) error {
 	}
 
 	// Ensure the parent directory exists (for files in subfolders)
-	if err := fsys.MkdirAll(filepath.Dir(f.Name), 0755); err != nil {
+	if err := fsys.MkdirAll(filepath.Dir(f.Name), 0o755); err != nil {
 		return fmt.Errorf("failed to create parent directory: %w", err)
 	}
 

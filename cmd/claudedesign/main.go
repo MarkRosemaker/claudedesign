@@ -27,7 +27,7 @@ func run() error {
 
 	cmd := "unzip"
 	switch len(flag.Args()) {
-	case 0: //ok
+	case 0: // ok
 	case 1:
 		cmd = flag.Args()[0]
 	default:
